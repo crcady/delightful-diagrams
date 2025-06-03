@@ -6,14 +6,15 @@ import z3
 def main():
     d = Document()
     r1 = d.newRect("r1", x=0, y=0, width=100, height=100)
-    r2 = d.newRect("r2", x=100, y=0, width=100, height=100)
+    r2 = d.newRect("r2", x=100, y=0, width=100, height=100, fill="red")
     
     print(d.render())
 
 class Rect:
-    def __init__(self, document: Document, name: str):
+    def __init__(self, document: Document, name: str, fill="white"):
         self.name = name
         self.document = document
+        self.fill = fill
 
     def get_attr(self, attr_name: str) -> str:
         return self.name + "__" + attr_name
@@ -25,7 +26,7 @@ class Rect:
         height = values[self.name + "__" + "height"]
 
         return svg.Rect(
-            fill="white", stroke_width=1, stroke="black",
+            fill=self.fill, stroke_width=1, stroke="black",
             x=x, y=y, width=width, height=height
         )
     
@@ -55,9 +56,9 @@ class Document:
         )
 
 
-    def newRect(self, name: str, x: int | None = None, y: int | None = None, height: int | None = None, width: int | None = None) -> Rect:
+    def newRect(self, name: str, fill="white", x: int | None = None, y: int | None = None, height: int | None = None, width: int | None = None) -> Rect:
         # First we need to get the new shape object
-        r = Rect(self, name)
+        r = Rect(self, name, fill=fill)
 
         # Add that object to our list of objects in the document
         self.elements.append(r)
