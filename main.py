@@ -6,7 +6,12 @@ import z3
 def main():
     d = Document()
     r1 = d.newRect("r1", x=0, y=0, width=100, height=100)
-    r2 = d.newRect("r2", x=100, y=0, width=100, height=100, fill="red")
+    r2 = d.newRect("r2", fill="red")
+
+    d.extra_constraints.append(z3.Int(r1.get_attr("right")) + 50 == z3.Int(r2.get_attr("left")))
+    d.extra_constraints.append(z3.Int(r1.get_attr("top")) + 25 == z3.Int(r2.get_attr("top")))
+    d.extra_constraints.append(z3.Int(r1.get_attr("bottom")) == z3.Int(r2.get_attr("bottom")))
+    d.extra_constraints.append(z3.Int(r1.get_attr("width")) == z3.Int(r2.get_attr("width")))
     
     print(d.render())
 
@@ -40,7 +45,7 @@ class Document:
         for c in self.extra_constraints:
             s.add(c)
 
-        if not s.check():
+        if s.check().r != z3.Z3_L_TRUE:
             print("Couldn't satisfy the constraints, aborting", file=sys.stderr)
             sys.exit(1)
 
@@ -72,6 +77,13 @@ class Document:
             self.extra_constraints.append(z3.Int(r.get_attr("height")) == height)
         if width is not None:
             self.extra_constraints.append(z3.Int(r.get_attr("width")) == width)
+
+        # We add some constraints that will be used to control the alignment of the shape
+        # These will only drive the computation of the numbers above, which are used to create the SVG
+        self.extra_constraints.append(z3.Int(r.get_attr("left")) == z3.Int(r.get_attr("x")))
+        self.extra_constraints.append(z3.Int(r.get_attr("right")) == z3.Int(r.get_attr("left")) + z3.Int(r.get_attr("width")))
+        self.extra_constraints.append(z3.Int(r.get_attr("top")) == z3.Int(r.get_attr("y")))
+        self.extra_constraints.append(z3.Int(r.get_attr("bottom")) == z3.Int(r.get_attr("top")) + z3.Int(r.get_attr("height")))
 
         # Finally we give the shape back to the user
         return r
