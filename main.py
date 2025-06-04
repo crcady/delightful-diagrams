@@ -1,4 +1,6 @@
 from __future__ import annotations
+from inspect import signature
+from typing import Any
 import svg
 import sys
 import z3
@@ -28,10 +30,11 @@ def main():
     print(d.render())
 
 class Rect:
-    def __init__(self, document: Document, name: str, fill="white"):
+    def __init__(self, document: Document, name: str, fill="white", labels: dict[str, any] = {}):
         self.name = name
         self.document = document
         self.fill = fill
+        self.labels = labels
 
     def get_attr(self, attr_name: str) -> z3.ArithRef:
         return z3.Int(self.name + "__" + attr_name)
@@ -75,6 +78,7 @@ class Document:
     def __init__(self):
         self.elements: list[Rect] = []
         self.extra_constraints: list[z3.z3.BoolRef] = []
+        self.deferred_constraints: list[DeferredConstraint] = []
 
     def render(self) -> svg.SVG:
         # Helper functions cribbed from https://stackoverflow.com/questions/67043494/max-and-min-of-a-set-of-variables-in-z3py
@@ -92,8 +96,13 @@ class Document:
 
         s = z3.Solver()
     
+        for dc in self.deferred_constraints:
+            dc.invoke(self)
+            
         for c in self.extra_constraints:
             s.add(c)
+
+        
 
         min_left = min([shape.get_attr("left") for shape in self.elements])
         min_top = min([shape.get_attr("top") for shape in self.elements])
@@ -125,9 +134,9 @@ class Document:
     def require(self, c):
         self.extra_constraints.append(c)
 
-    def newRect(self, name: str, fill="white", x: int | None = None, y: int | None = None, height: int | None = None, width: int | None = None) -> Rect:
+    def newRect(self, name: str, fill="white", x: int | None = None, y: int | None = None, height: int | None = None, width: int | None = None, labels: dict[str, Any] = {}) -> Rect:
         # First we need to get the new shape object
-        r = Rect(self, name, fill=fill)
+        r = Rect(self, name, fill=fill, labels=labels)
 
         # Add that object to our list of objects in the document
         self.elements.append(r)
@@ -151,6 +160,55 @@ class Document:
 
         # Finally we give the shape back to the user
         return r
+    
+    def when(self, test):
+        dc = DeferredConstraint(test)
+        self.deferred_constraints.append(dc)
+        return dc
+    
+class DeferredConstraint:
+    def __init__(self, test):
+        self.test = test
+        self.then_func = None
+        self.other_func = None
+
+    def then(self, then_func):
+        self.then_func = then_func
+        return self
+    
+    def otherwise(self, other_func):
+        self.other_func = other_func
+        return self
+    
+    def invoke(self, doc: Document):
+        match len(signature(self.test).parameters):
+            case 1:
+                for shape in doc.elements:
+                    res = self.test(shape)
+                    if res:
+                        if self.then_func is not None:
+                            c = self.then_func(shape)
+                            doc.require(c)
+                    else:
+                        if self.other_func is not None:
+                            c = self.other_func(shape)
+                            doc.require(c)
+            
+            case 2:
+                for shape1 in doc.elements:
+                    for shape2 in doc.elements:
+                        if shape1 is shape2:
+                            continue
+
+                        res = self.test(shape1, shape2)
+                        if res:
+                            if self.then_func is not None:
+                                c = self.then_func(shape1, shape2)
+                                doc.require(c)
+                        else:
+                            if self.other_func is not None:
+                                c = self.other_func(shape1, shape2)
+                                doc.require(c)
 
 if __name__ == "__main__":
     main()
