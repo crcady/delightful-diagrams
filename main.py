@@ -5,17 +5,18 @@ import svg
 import sys
 import z3
 
+
 def main():
     d = Document()
     next_left = 0
     next_top = 0
     for y in range(1, 16):
         for x in range(1, 16):
-            if (x+y-1) % 15 == 0:
+            if (x + y - 1) % 15 == 0:
                 color = "purple"
-            elif (x+y-1) % 3 == 0:
+            elif (x + y - 1) % 3 == 0:
                 color = "red"
-            elif (x+y-1) % 5 == 0:
+            elif (x + y - 1) % 5 == 0:
                 color = "blue"
             else:
                 color = "white"
@@ -26,11 +27,14 @@ def main():
             next_left = r.get_attr("right")
         next_top = r.get_attr("bottom")
         next_left = 0
-    
+
     print(d.render())
 
+
 class Rect:
-    def __init__(self, document: Document, name: str, fill="white", labels: dict[str, any] = {}):
+    def __init__(
+        self, document: Document, name: str, fill="white", labels: dict[str, any] = {}
+    ):
         self.name = name
         self.document = document
         self.fill = fill
@@ -46,34 +50,40 @@ class Rect:
         height = values[self.name + "__" + "height"]
 
         return svg.Rect(
-            fill=self.fill, stroke_width=1, stroke="black",
-            x=x, y=y, width=width, height=height
+            fill=self.fill,
+            stroke_width=1,
+            stroke="black",
+            x=x,
+            y=y,
+            width=width,
+            height=height,
         )
-    
+
     def left(self):
         return self.get_attr("left")
-    
+
     def right(self):
         return self.get_attr("right")
-    
+
     def top(self):
         return self.get_attr("top")
-    
+
     def bottom(self):
         return self.get_attr("bottom")
-    
+
     def x(self):
         return self.get_attr("x")
-    
+
     def y(self):
         return self.get_attr("y")
-    
+
     def height(self):
         return self.get_attr("height")
-    
+
     def width(self):
         return self.get_attr("width")
-    
+
+
 class Document:
     def __init__(self):
         self.elements: list[Rect] = []
@@ -87,7 +97,7 @@ class Document:
             for v in vs[1:]:
                 m = z3.If(v > m, v, m)
             return m
-        
+
         def min(vs):
             m = vs[0]
             for v in vs[1:]:
@@ -95,14 +105,12 @@ class Document:
             return m
 
         s = z3.Solver()
-    
+
         for dc in self.deferred_constraints:
             dc.invoke(self)
-            
+
         for c in self.extra_constraints:
             s.add(c)
-
-        
 
         min_left = min([shape.get_attr("left") for shape in self.elements])
         min_top = min([shape.get_attr("top") for shape in self.elements])
@@ -112,7 +120,7 @@ class Document:
         s.add(min_left == 0)
         s.add(min_top == 0)
         s.add(z3.Int("doc__width") == max_right)
-        s.add(z3.Int("doc__height") == max_bottom)        
+        s.add(z3.Int("doc__height") == max_bottom)
 
         if s.check().r != z3.Z3_L_TRUE:
             print("Couldn't satisfy the constraints, aborting", file=sys.stderr)
@@ -134,7 +142,16 @@ class Document:
     def require(self, c):
         self.extra_constraints.append(c)
 
-    def newRect(self, name: str, fill="white", x: int | None = None, y: int | None = None, height: int | None = None, width: int | None = None, labels: dict[str, Any] = {}) -> Rect:
+    def newRect(
+        self,
+        name: str,
+        fill="white",
+        x: int | None = None,
+        y: int | None = None,
+        height: int | None = None,
+        width: int | None = None,
+        labels: dict[str, Any] = {},
+    ) -> Rect:
         # First we need to get the new shape object
         r = Rect(self, name, fill=fill, labels=labels)
 
@@ -160,12 +177,13 @@ class Document:
 
         # Finally we give the shape back to the user
         return r
-    
+
     def when(self, test):
         dc = DeferredConstraint(test)
         self.deferred_constraints.append(dc)
         return dc
-    
+
+
 class DeferredConstraint:
     def __init__(self, test):
         self.test = test
@@ -175,11 +193,11 @@ class DeferredConstraint:
     def then(self, then_func):
         self.then_func = then_func
         return self
-    
+
     def otherwise(self, other_func):
         self.other_func = other_func
         return self
-    
+
     def invoke(self, doc: Document):
         match len(signature(self.test).parameters):
             case 1:
@@ -193,7 +211,7 @@ class DeferredConstraint:
                         if self.other_func is not None:
                             c = self.other_func(shape)
                             doc.require(c)
-            
+
             case 2:
                 for shape1 in doc.elements:
                     for shape2 in doc.elements:
@@ -210,6 +228,6 @@ class DeferredConstraint:
                                 c = self.other_func(shape1, shape2)
                                 doc.require(c)
 
+
 if __name__ == "__main__":
     main()
-
