@@ -5,13 +5,25 @@ import z3
 
 def main():
     d = Document()
-    r1 = d.newRect("r1", x=0, y=0, width=100, height=100)
-    r2 = d.newRect("r2", fill="red")
+    next_left = 0
+    next_top = 0
+    for y in range(1, 11):
+        for x in range(1, 11):
+            if (x+y-1) % 15 == 0:
+                color = "purple"
+            elif (x+y-1) % 3 == 0:
+                color = "red"
+            elif (x+y-1) % 5 == 0:
+                color = "blue"
+            else:
+                color = "white"
 
-    d.extra_constraints.append(z3.Int(r1.get_attr("right")) + 50 == z3.Int(r2.get_attr("left")))
-    d.extra_constraints.append(z3.Int(r1.get_attr("top")) + 25 == z3.Int(r2.get_attr("top")))
-    d.extra_constraints.append(z3.Int(r1.get_attr("bottom")) == z3.Int(r2.get_attr("bottom")))
-    d.extra_constraints.append(z3.Int(r1.get_attr("width")) == z3.Int(r2.get_attr("width")))
+            r = d.newRect(f"rect{x}-{y}", width=15, height=15, fill=color)
+            d.extra_constraints.append(r.get_attr("left") == next_left)
+            d.extra_constraints.append(r.get_attr("top") == next_top)
+            next_left = r.get_attr("right")
+        next_top = r.get_attr("bottom")
+        next_left = 0
     
     print(d.render())
 
@@ -21,8 +33,8 @@ class Rect:
         self.document = document
         self.fill = fill
 
-    def get_attr(self, attr_name: str) -> str:
-        return self.name + "__" + attr_name
+    def get_attr(self, attr_name: str) -> z3.ArithRef:
+        return z3.Int(self.name + "__" + attr_name)
 
     def render(self, values: dict[str, int]) -> svg.Element:
         x = values[self.name + "__" + "x"]
@@ -70,20 +82,20 @@ class Document:
 
         # We need to handle the (possibly impossible to satisfy) concrete constraints
         if x is not None:
-            self.extra_constraints.append(z3.Int(r.get_attr("x")) == x)
+            self.extra_constraints.append(r.get_attr("x") == x)
         if y is not None:
-            self.extra_constraints.append(z3.Int(r.get_attr("y")) == y)
+            self.extra_constraints.append(r.get_attr("y") == y)
         if height is not None:
-            self.extra_constraints.append(z3.Int(r.get_attr("height")) == height)
+            self.extra_constraints.append(r.get_attr("height") == height)
         if width is not None:
-            self.extra_constraints.append(z3.Int(r.get_attr("width")) == width)
+            self.extra_constraints.append(r.get_attr("width") == width)
 
         # We add some constraints that will be used to control the alignment of the shape
         # These will only drive the computation of the numbers above, which are used to create the SVG
-        self.extra_constraints.append(z3.Int(r.get_attr("left")) == z3.Int(r.get_attr("x")))
-        self.extra_constraints.append(z3.Int(r.get_attr("right")) == z3.Int(r.get_attr("left")) + z3.Int(r.get_attr("width")))
-        self.extra_constraints.append(z3.Int(r.get_attr("top")) == z3.Int(r.get_attr("y")))
-        self.extra_constraints.append(z3.Int(r.get_attr("bottom")) == z3.Int(r.get_attr("top")) + z3.Int(r.get_attr("height")))
+        self.extra_constraints.append(r.get_attr("left") == r.get_attr("x"))
+        self.extra_constraints.append(r.get_attr("right") == r.get_attr("left") + r.get_attr("width"))
+        self.extra_constraints.append(r.get_attr("top") == r.get_attr("y"))
+        self.extra_constraints.append(r.get_attr("bottom") == r.get_attr("top") + r.get_attr("height"))
 
         # Finally we give the shape back to the user
         return r
