@@ -53,9 +53,33 @@ class Document:
         self.extra_constraints: list[z3.z3.BoolRef] = []
 
     def render(self) -> svg.SVG:
+        # Helper functions cribbed from https://stackoverflow.com/questions/67043494/max-and-min-of-a-set-of-variables-in-z3py
+        def max(vs):
+            m = vs[0]
+            for v in vs[1:]:
+                m = z3.If(v > m, v, m)
+            return m
+        
+        def min(vs):
+            m = vs[0]
+            for v in vs[1:]:
+                m = z3.If(v < m, v, m)
+            return m
+
         s = z3.Solver()
+    
         for c in self.extra_constraints:
             s.add(c)
+
+        min_left = min([shape.get_attr("left") for shape in self.elements])
+        min_top = min([shape.get_attr("top") for shape in self.elements])
+        max_right = max([shape.get_attr("right") for shape in self.elements])
+        max_bottom = max([shape.get_attr("bottom") for shape in self.elements])
+
+        s.add(min_left == 0)
+        s.add(min_top == 0)
+        s.add(z3.Int("doc__width") == max_right)
+        s.add(z3.Int("doc__height") == max_bottom)        
 
         if s.check().r != z3.Z3_L_TRUE:
             print("Couldn't satisfy the constraints, aborting", file=sys.stderr)
@@ -68,7 +92,9 @@ class Document:
 
         es = [e.render(values) for e in self.elements]
 
+        vb = svg.ViewBoxSpec(0, 0, values["doc__width"], values["doc__height"])
         return svg.SVG(
+            viewBox=vb,
             elements=es,
         )
 
@@ -99,7 +125,6 @@ class Document:
 
         # Finally we give the shape back to the user
         return r
-    
 
 if __name__ == "__main__":
     main()
