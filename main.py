@@ -7,8 +7,8 @@ def main():
     d = Document()
     next_left = 0
     next_top = 0
-    for y in range(1, 11):
-        for x in range(1, 11):
+    for y in range(1, 16):
+        for x in range(1, 16):
             if (x+y-1) % 15 == 0:
                 color = "purple"
             elif (x+y-1) % 3 == 0:
@@ -46,6 +46,30 @@ class Rect:
             fill=self.fill, stroke_width=1, stroke="black",
             x=x, y=y, width=width, height=height
         )
+    
+    def left(self):
+        return self.get_attr("left")
+    
+    def right(self):
+        return self.get_attr("right")
+    
+    def top(self):
+        return self.get_attr("top")
+    
+    def bottom(self):
+        return self.get_attr("bottom")
+    
+    def x(self):
+        return self.get_attr("x")
+    
+    def y(self):
+        return self.get_attr("y")
+    
+    def height(self):
+        return self.get_attr("height")
+    
+    def width(self):
+        return self.get_attr("width")
     
 class Document:
     def __init__(self):
@@ -98,6 +122,8 @@ class Document:
             elements=es,
         )
 
+    def require(self, c):
+        self.extra_constraints.append(c)
 
     def newRect(self, name: str, fill="white", x: int | None = None, y: int | None = None, height: int | None = None, width: int | None = None) -> Rect:
         # First we need to get the new shape object
@@ -118,10 +144,10 @@ class Document:
 
         # We add some constraints that will be used to control the alignment of the shape
         # These will only drive the computation of the numbers above, which are used to create the SVG
-        self.extra_constraints.append(r.get_attr("left") == r.get_attr("x"))
-        self.extra_constraints.append(r.get_attr("right") == r.get_attr("left") + r.get_attr("width"))
-        self.extra_constraints.append(r.get_attr("top") == r.get_attr("y"))
-        self.extra_constraints.append(r.get_attr("bottom") == r.get_attr("top") + r.get_attr("height"))
+        self.require(r.left() == r.x())
+        self.require(r.right() == r.left() + r.width())
+        self.require(r.top() == r.y())
+        self.require(r.bottom() == r.top() + r.height())
 
         # Finally we give the shape back to the user
         return r
