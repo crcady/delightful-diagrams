@@ -31,7 +31,7 @@ def main():
     print(d.render())
 
 
-class Rect:
+class Shape:
     def __init__(
         self, document: Document, name: str, fill="white", labels: dict[str, any] = {}
     ):
@@ -42,22 +42,6 @@ class Rect:
 
     def get_attr(self, attr_name: str) -> z3.ArithRef:
         return z3.Int(self.name + "__" + attr_name)
-
-    def render(self, values: dict[str, int]) -> svg.Element:
-        x = values[self.name + "__" + "x"]
-        y = values[self.name + "__" + "y"]
-        width = values[self.name + "__" + "width"]
-        height = values[self.name + "__" + "height"]
-
-        return svg.Rect(
-            fill=self.fill,
-            stroke_width=1,
-            stroke="black",
-            x=x,
-            y=y,
-            width=width,
-            height=height,
-        )
 
     def left(self):
         return self.get_attr("left")
@@ -83,6 +67,39 @@ class Rect:
     def width(self):
         return self.get_attr("width")
 
+class Rect(Shape):
+    def render(self, values: dict[str, int]) -> svg.Element:
+        x = values[self.name + "__" + "x"]
+        y = values[self.name + "__" + "y"]
+        width = values[self.name + "__" + "width"]
+        height = values[self.name + "__" + "height"]
+
+        return svg.Rect(
+            fill=self.fill,
+            stroke_width=1,
+            stroke="black",
+            x=x,
+            y=y,
+            width=width,
+            height=height,
+        )
+    
+
+class Circle(Shape):
+    def render(self, values: dict[str, int]) -> svg.Element:
+        cx = values[self.name + "__" + "cx"]
+        cy = values[self.name + "__" + "cy"]
+        r = values[self.name + "__" + "r"]
+        print(values, file=sys.stderr)
+
+        return svg.Circle(
+            fill=self.fill,
+            stroke_width=1,
+            stroke="black",
+            cx=cx,
+            cy=cy,
+            r=r
+        )
 
 class Document:
     def __init__(self):
@@ -117,8 +134,8 @@ class Document:
         max_right = max([shape.get_attr("right") for shape in self.elements])
         max_bottom = max([shape.get_attr("bottom") for shape in self.elements])
 
-        s.add(min_left == 0)
-        s.add(min_top == 0)
+        s.add(min_left >= 0)
+        s.add(min_top >= 0)
         s.add(z3.Int("doc__width") == max_right)
         s.add(z3.Int("doc__height") == max_bottom)
 
@@ -177,6 +194,47 @@ class Document:
 
         # Finally we give the shape back to the user
         return r
+    
+    def newCircle(
+            self,
+            name: str,
+            fill="white",
+            cx: int | None = None,
+            cy: int | None = None,
+            r: int | None = None,
+            labels: dict[str, Any] = {},
+    ) -> Circle:
+        # First we need to get the new shape object
+        c = Circle(self, name, fill=fill, labels=labels)
+
+        # Add that object to our list of objects in the document
+        self.elements.append(c)
+
+        # We need to handle the (possibly impossible to satisfy) concrete constraints
+        if cx is not None:
+            self.extra_constraints.append(c.get_attr("cx") == cx)
+        if cy is not None:
+            self.extra_constraints.append(c.get_attr("cy") == cy)
+        if r is not None:
+            self.extra_constraints.append(c.get_attr("r") == r)
+
+        # We add some constraints that will be used to control the alignment of the shape
+        # These will only drive the computation of the numbers above, which are used to create the SVG
+        self.require(c.left() == c.x())
+        self.require(c.right() == c.left() + c.width())
+        self.require(c.top() == c.y())
+        self.require(c.bottom() == c.top() + c.height())
+
+        self.require(c.width() == c.height())
+        
+        self.require(c.left() == c.get_attr("cx") - c.get_attr("r"))
+        self.require(c.top() == c.get_attr("cy") - c.get_attr("r"))
+        self.require(c.right() == c.get_attr("cx") + c.get_attr("r"))
+        self.require(c.bottom() == c.get_attr("cy") + c.get_attr("r"))
+
+        # Finally we give the shape back to the user
+        return c
+
 
     def when(self, test):
         dc = DeferredConstraint(test)
